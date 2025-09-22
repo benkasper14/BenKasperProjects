@@ -1,0 +1,535 @@
+//Hello!
+
+import java.io.*;
+import java.util.*;
+
+public class AirlineSystem implements AirlineInterface{
+
+    private Set<String> cityNames;
+    private ArrayList<String> cityArray;
+    //private ArrayList<Route> routeArray;
+    private Digraph graph;
+    
+    public boolean loadRoutes(String fileName) {
+
+        try {
+
+            Scanner inScan = new Scanner(System.in);
+		    Scanner fileScan = new Scanner(new FileInputStream(fileName));
+
+		    int num = fileScan.nextInt();
+		    graph = new Digraph(num);
+		    cityNames = new HashSet<>();
+            cityArray = new ArrayList<String>();
+
+		    fileScan.nextLine();
+
+		    for(int i=0; i<num; i++) {
+                String c = fileScan.nextLine();
+			    cityNames.add(c);
+                cityArray.add(c);
+		    }
+
+		    while(fileScan.hasNextInt() || fileScan.hasNextDouble()) {
+			    int from = fileScan.nextInt();
+			    int to = fileScan.nextInt();
+                int distance = fileScan.nextInt();
+                double cost = fileScan.nextDouble();
+			    DirectedEdge edge1 = new DirectedEdge((from-1), (to-1), distance, cost);
+                DirectedEdge edge2 = new DirectedEdge((to-1), (from-1), distance, cost);
+			    graph.addEdge(edge1);
+                graph.addEdge(edge2);
+		    }
+
+		    fileScan.close();
+            return true;
+
+        }
+
+        catch (Exception e){
+            return false;
+        }
+
+    }
+
+    public Set<String> retrieveCityNames() {
+        return cityNames;
+    }
+
+    public Set<Route> retrieveDirectRoutesFrom(String city) throws CityNotFoundException {
+
+        if(!cityNames.contains(city)) {
+            throw new CityNotFoundException("City not found");
+        }
+
+        Set<Route> outRoutes = new HashSet<>();
+        int index = cityArray.indexOf(city);
+
+        for(DirectedEdge e: graph.adj(index)) {
+            int toInt = e.to();
+            String toString = cityArray.get(toInt);
+            int d = e.distance();
+            double c = e.cost();
+            Route r = new Route(city, toString, d, c);
+            outRoutes.add(r);
+            //routeArray.add(r);
+        }
+
+        return outRoutes;
+
+    }
+
+    public Set<ArrayList<String>> fewestStopsItinerary(String source, String destination) throws CityNotFoundException {
+
+        if(!cityNames.contains(source) || !cityNames.contains(destination)) {
+            throw new CityNotFoundException("City not found");
+        }
+
+        Set<ArrayList<String>> result = new HashSet<>();
+        ArrayList<String> path = new ArrayList<>();
+
+        int sourceNum = cityArray.indexOf(source);
+        int destNum = cityArray.indexOf(destination);
+        graph.bfs(sourceNum);
+
+        if(!graph.marked[destNum]) {
+            System.out.println("No path found");
+        }
+        else {
+            Stack<String> pathStack = new Stack<>();
+            for(int i=destNum; i!=sourceNum; i=graph.edgeTo[i]) {
+                pathStack.push(cityArray.get(i));
+            }
+            pathStack.push(cityArray.get(sourceNum));
+            while(!pathStack.empty()) {
+                path.add(pathStack.pop());
+            }
+        }
+        result.add(path);
+
+        return result;
+    }
+
+    public Set<ArrayList<Route>> shortestDistanceItinerary(String source, String destination) throws CityNotFoundException {
+
+        if(!cityNames.contains(source) || !cityNames.contains(destination)) {
+            throw new CityNotFoundException("City not found");
+        }
+
+        Set<ArrayList<Route>> result = new HashSet<>();
+        ArrayList<Route> path = new ArrayList<>();
+
+        int sourceNum = cityArray.indexOf(source);
+        int destNum = cityArray.indexOf(destination);
+        graph.dijkstrasDist(sourceNum, destNum);
+
+        if(!graph.marked[destNum]) {
+            return result;
+        }
+        else {
+            Stack<Integer> pathStack = new Stack<>();
+            for (int i=destNum; i!=sourceNum; i=graph.edgeTo[i]) {
+                pathStack.push(i);
+            }
+            /*Route r = new Route(source, destination, 
+            graph.distTo[destNum], 0);
+            path.add(r);*/
+
+            int prevVertex = sourceNum;
+
+            while(!pathStack.empty()) {
+                int v = pathStack.pop();
+                Route r = new Route(cityArray.get(prevVertex), cityArray.get(v), 
+                Math.abs(graph.distTo[v]-graph.distTo[prevVertex]), Math.abs(graph.costTo[v]-graph.costTo[prevVertex]));
+                //System.out.println("COST: " + Math.abs(graph.costTo[v]-graph.costTo[prevVertex]));
+                path.add(r);
+                prevVertex = v;
+            }
+            result.add(path);
+        }
+
+        return result;
+    }
+
+    public Set<ArrayList<Route>> cheapestItinerary(String source, String destination) throws CityNotFoundException {
+
+        if(!cityNames.contains(source) || !cityNames.contains(destination)) {
+            throw new CityNotFoundException("City not found");
+        }
+
+        Set<ArrayList<Route>> result = new HashSet<>();
+        ArrayList<Route> path = new ArrayList<>();
+
+        int sourceNum = cityArray.indexOf(source);
+        int destNum = cityArray.indexOf(destination);
+        graph.dijkstrasCost(sourceNum, destNum);
+
+        if(!graph.marked[destNum]) {
+            return result;
+        }
+        else {
+            Stack<Integer> pathStack = new Stack<>();
+            for (int i=destNum; i!=sourceNum; i=graph.edgeTo[i]) {
+                pathStack.push(i);
+            }
+
+            int prevVertex = sourceNum;
+
+            while(!pathStack.empty()) {
+                int v = pathStack.pop();
+                Route r = new Route(cityArray.get(prevVertex), cityArray.get(v), 
+                Math.abs(graph.distTo[v]-graph.distTo[prevVertex]), Math.abs(graph.costTo[v]-graph.costTo[prevVertex]));
+                //System.out.println("COST: " + Math.abs(graph.costTo[v]-graph.costTo[prevVertex]));
+                path.add(r);
+                prevVertex = v;
+            }
+            result.add(path);
+        }
+
+        return result;
+    }
+
+    public Set<ArrayList<Route>> cheapestItinerary(String source, String transit, String destination) throws CityNotFoundException {
+
+        if(!cityNames.contains(source) || !cityNames.contains(destination) || !cityNames.contains(transit)) {
+            throw new CityNotFoundException("City not found");
+        }
+
+        Set<ArrayList<Route>> first = cheapestItinerary(source, transit);
+        Set<ArrayList<Route>> second = cheapestItinerary(transit, destination);
+        Set<ArrayList<Route>> result = new HashSet<>();
+        ArrayList<Route> path = new ArrayList<>();
+
+        for (ArrayList<Route> r: first) {
+            path.addAll(r);
+        }
+        for (ArrayList<Route> r: second) {
+            path.addAll(r);
+        }
+
+        result.add(path);
+        return result;
+
+    }
+
+    public Set<Set<Route>> getMSTs() {
+        return null;
+    }
+
+    public Set<ArrayList<Route>> tripsWithin(String city, double budget) throws CityNotFoundException {
+
+        if(!cityNames.contains(city)) {
+            throw new CityNotFoundException("City not found");
+        }
+
+        Set<ArrayList<Route>> result = new HashSet<>();
+        Set<Integer> marked = new HashSet<>();
+        ArrayList<Route> curRoute = new ArrayList<>();
+
+        int startIndex = cityArray.indexOf(city);
+        marked.add(startIndex);
+
+        tripsWithinHelper(startIndex, budget, result, curRoute, 0, marked);
+
+        return result;
+    }
+
+    private void tripsWithinHelper(int curIndex, double budget, Set<ArrayList<Route>> found, ArrayList<Route> curRoute,
+                                    double curPrice, Set<Integer> marked) {
+            
+        if(curPrice > budget) {
+            return;
+        }
+        
+        for(DirectedEdge neiborEdge: graph.adj(curIndex)) {
+
+            int neiborIndex = neiborEdge.to();
+            
+            if(!marked.contains(neiborIndex) && curPrice+neiborEdge.cost()<=budget) {
+                
+                marked.add(neiborIndex);
+
+                Route newRoute = new Route(cityArray.get(curIndex), cityArray.get(neiborIndex),
+                                            neiborEdge.distance(), neiborEdge.cost());
+                curRoute.add(newRoute);
+                curPrice += neiborEdge.cost();
+
+                if(neiborIndex!=curIndex) {
+                    found.add(new ArrayList<>(curRoute));
+                }
+
+                tripsWithinHelper(neiborIndex, budget, found, curRoute, curPrice, marked);
+
+                curRoute.remove(curRoute.size()-1);
+                curPrice -= neiborEdge.cost();
+                marked.remove(neiborIndex);
+
+            }
+
+        }
+
+    }
+
+    public Set<ArrayList<Route>> tripsWithin(double budget) {
+
+        Set<ArrayList<Route>> result = new HashSet<>();
+
+        try {
+            for(String city: cityArray) {
+                result.addAll(tripsWithin(city, budget));
+            }
+        }
+        catch(Exception e) {
+            System.out.println("ayo something ain't right");
+        }
+
+        return result;
+    }
+
+    /**
+	*  The <tt>Digraph</tt> class represents an directed graph of vertices
+	*  named 0 through v-1. It supports the following operations: add an edge to
+	*  the graph, iterate over all of edges leaving a vertex.Self-loops are
+	*  permitted.
+	*/
+	private class Digraph {
+
+		private final int v;
+		private int e;
+		private LinkedList<DirectedEdge>[] adj;
+        private boolean[] marked;
+        private int[] edgeTo; 
+        private int[] distTo;
+        private double[] costTo;
+        private static final int INFINITY = Integer.MAX_VALUE;
+
+		/**
+		 * Create an empty digraph with v vertices.
+		 *
+		 * @param v The number of vertices of the Digraph.
+		 */
+		public Digraph (int v) {
+			if (v < 0) throw new RuntimeException("Number of vertices must be nonnegative");
+			this.v = v;
+			this.e = 0;
+			@SuppressWarnings("unchecked")
+			LinkedList<DirectedEdge>[] temp =
+			(LinkedList<DirectedEdge>[]) new LinkedList[v];
+			adj = temp;
+			for (int i = 0; i < v; i++) adj[i] = new LinkedList<DirectedEdge>();
+		}
+
+		/**
+		 * Add the edge e to this digraph.
+		 *
+		 * @param edge A directed edge between two existing vertices in the Digraph.
+		 */
+		public void addEdge (DirectedEdge edge) {
+			int from = edge.from();
+			adj[from].add(edge);
+			e++;
+		}
+
+
+		/**
+		 * Return the edges leaving vertex v as an Iterable.
+		 * To iterate over the edges leaving vertex v, use foreach notation:
+		 * <tt>for (DirectedEdge e : graph.adj(v))</tt>.
+		 *
+		 * @param v Vertex id
+		 * @return A DirectedEdge Iterable Object
+		 */
+		public Iterable<DirectedEdge> adj (int v) {
+			return adj[v];
+		}
+
+        public void bfs(int source) {
+
+            marked = new boolean[this.v];
+            distTo = new int[this.e];
+            edgeTo = new int[this.v];
+            Queue<Integer> q = new LinkedList<Integer>();
+
+            for (int i = 0; i < v; i++){
+                distTo[i] = Integer.MAX_VALUE;
+                marked[i] = false;
+            }
+
+            distTo[source] = 0;
+            marked[source] = true;
+            q.add(source);
+
+            while (!q.isEmpty()) {
+
+                int v = q.remove();
+                for (DirectedEdge w : adj(v)) {
+                    if (!marked[w.to()]) {
+                        edgeTo[w.to()] = v;
+                        distTo[w.to()] = distTo[v] + 1;
+                        marked[w.to()] = true;
+                        q.add(w.to());
+                    }
+                }
+            }
+        }
+
+        public void dijkstrasDist(int source, int destination) {
+
+            marked = new boolean[this.v];
+            distTo = new int[this.v];
+            edgeTo = new int[this.v];
+            costTo = new double[this.v];
+
+            for (int i = 0; i < v; i++){
+                distTo[i] = INFINITY;
+                marked[i] = false;
+            }
+
+            distTo[source] = 0;
+            costTo[source] = 0;
+            marked[source] = true;
+            int nMarked = 1;
+
+            int current = source;
+            while (nMarked < this.v) {
+                for (DirectedEdge w : adj(current)) {
+                    if (distTo[current]+w.distance() < distTo[w.to()]) {
+                        edgeTo[w.to()] = current;
+                        distTo[w.to()] = distTo[current]+w.distance();
+                        costTo[w.to()] = costTo[current]+w.cost();
+                    }
+                
+                }
+            //Find the vertex with minimim path distance
+            //This can be done more effiently using a priority queue!
+
+                int min = INFINITY;
+                current = -1;
+
+                for(int i=0; i<distTo.length; i++){
+                    if(marked[i])
+                        continue;
+                    if(distTo[i] < min){
+                        min = distTo[i];
+                        current = i;
+                    }
+                }
+
+                if(current >= 0) {
+                    marked[current] = true;
+                    nMarked++;
+                } 
+                else break;
+            }
+        }
+
+        public void dijkstrasCost(int source, int destination) {
+
+            marked = new boolean[this.v];
+            costTo = new double[this.v];
+            edgeTo = new int[this.v];
+            distTo = new int[this.v];
+
+            for (int i = 0; i < v; i++){
+                costTo[i] = Integer.MAX_VALUE;
+                marked[i] = false;
+            }
+
+            costTo[source] = 0;
+            distTo[source] = 0;
+            marked[source] = true;
+            int nMarked = 1;
+            int current = source;
+
+            while (nMarked < this.v) {
+                for (DirectedEdge w : adj(current)) {
+                    if (costTo[current]+w.cost() < costTo[w.to()]) {
+                        edgeTo[w.to()] = current;
+                        costTo[w.to()] = costTo[current]+w.cost();
+                        distTo[w.to()] = distTo[current]+w.distance();
+                    }
+                
+                }
+            //Find the vertex with minimim path distance
+            //This can be done more effiently using a priority queue!
+
+                double min = Integer.MAX_VALUE;
+                current = -1;
+
+                for(int i=0; i<costTo.length; i++){
+                    if(marked[i])
+                    continue;
+                    if(costTo[i] < min){
+                        min = costTo[i];
+                        current = i;
+                    }
+                }
+
+                if(current >= 0){
+                marked[current] = true;
+                nMarked++;
+                } 
+                else break;
+            }
+        }
+        
+	}
+
+
+	/**
+	 *  The DirectedEdge class represents an edge in an directed graph.
+	 */
+	private class DirectedEdge {
+		private final int u;
+		private final int v;
+        private final int d;
+		private final double c;
+
+		/**
+		 * Create a directed edge from vertex u to v.
+		 *
+		 * @param u Source vertex id
+		 * @param v Destination vertex id
+		 */
+		public DirectedEdge (int u, int v, int d, double c) {
+			this.u = u;
+			this.v = v;
+            this.d = d;
+            this.c = c;
+		}
+
+		/**
+		 * Returns the source vertex of the edge.
+		 *
+		 * @return vertex id of source vertex.
+		 */
+		public int from () {
+			return u;
+		}
+
+		/**
+		 * Returns the destination vertex of the edge.
+		 *
+		 * @return vertex id of destination vertex.
+		 */
+		public int to () {
+			return v;
+		}
+
+        public int distance() {
+            return d;
+        }
+
+        public double cost() {
+            return c;
+        }
+
+	}
+
+
+
+    public static void main(String[] args) {
+
+    }
+
+}
