@@ -1,0 +1,106 @@
+library(dplyr)
+library(tidyr)
+
+###THANK YOU MONEYPUCK.COM FOR THE DATA 
+shots_2024 = read.csv("C:/Users/benoi/Desktop/Project/NHL/shots_2024.csv")
+
+#Determine amount of games a goalie has played
+goalie_games_played = shots_2024 %>%
+  filter(goalieNameForShot != "") %>%
+  filter(isPlayoffGame!=1) %>% #Playoff Game Filter
+  distinct(goalieNameForShot, game_id) %>%
+  count(goalieNameForShot, name = "games_played") %>%
+  arrange(desc(games_played))
+
+print(goalie_games_played)
+
+#Determine amount of shots against per game
+# Step 1: Shots faced per game
+goalie_shots_per_game = shots_2024 %>%
+  filter(goalieNameForShot != "", isPlayoffGame != 1, shotWasOnGoal == 1) %>%
+  group_by(goalieNameForShot, game_id) %>%
+  summarise(shots_faced = n(), .groups = "drop")
+
+# Step 2: Average shots per game per goalie
+average_shots_against = goalie_shots_per_game %>%
+  group_by(goalieNameForShot) %>%
+  summarise(avg_shots_against = mean(shots_faced), .groups = "drop") %>%
+  arrange(desc(avg_shots_against))
+
+head(average_shots_against)
+
+#How many shots each goalie faced
+goalie_shots_faced = shots_2024 %>%
+  filter(shotWasOnGoal == 1) %>% 
+  group_by(goalieNameForShot) %>%
+  summarise(total_shots = n(), .groups = "drop")
+
+#Set up data to start
+shots_2024 = shots_2024 %>% 
+  mutate(score_diff = abs(homeTeamGoals-awayTeamGoals)) %>% 
+  mutate(time_minutes = (time/60)) %>% 
+  filter(isPlayoffGame!=1) %>% #Playoff Game Filter
+  filter(goal != 1) %>% 
+  filter(event == "SHOT") %>% 
+  filter(shotWasOnGoal == 1) %>% 
+  select(goalieNameForShot, score_diff, time_minutes, xGoal, 
+         homeTeamCode, awayTeamCode, shooterName) %>% 
+  filter(goalieNameForShot != "")
+
+#Create multipliers, calculate stat
+shots_2024 = shots_2024 %>% 
+  #mutate(score_multiplier = 2*exp(-1*(score_diff)^2)+1) %>% 
+  mutate(score_multiplier = case_when(
+    score_diff == 0 ~ 3,
+    score_diff == 1 ~ 2.5,
+    score_diff == 2 ~ 1.8,
+    score_diff == 3 ~ 1.2,
+    score_diff >= 4 ~ 1,
+    TRUE ~ 1  #FALLBACK
+  )) %>% 
+  mutate(time_multiplier = ifelse(time_minutes>=60, 20, exp(.05*time_minutes))) %>% 
+  mutate(cs_on_shot = xGoal*score_multiplier*time_multiplier)
+
+#Summarize clutch score by goalie
+clutch_scores = shots_2024 %>%
+  group_by(goalieNameForShot) %>%
+  summarise(total_clutch_score = sum(cs_on_shot, na.rm = TRUE)) %>%
+  arrange(desc(total_clutch_score)) %>% 
+  mutate(total_clutch_score = format(total_clutch_score, digits = 10))
+
+#View the goalies with the highest clutch scores
+head(clutch_scores, 10)
+
+#50 clutchest saves
+top_50_clutch_saves = shots_2024 %>%
+  arrange(desc(cs_on_shot)) %>%
+  slice_head(n = 50) %>%
+  select(goalieNameForShot, cs_on_shot, score_diff, time_minutes, xGoal, 
+         homeTeamCode, awayTeamCode)
+
+print(top_50_clutch_saves)
+
+#Average Clutch Per Shot
+avg_clutch_per_shot = clutch_scores %>%
+  left_join(goalie_shots_faced, by = "goalieNameForShot") %>%
+  mutate(
+    total_clutch_score = as.numeric(total_clutch_score),
+    avg_clutch_per_shot = total_clutch_score / total_shots
+  ) %>%
+  arrange(desc(avg_clutch_per_shot)) %>%
+  filter(total_shots >= 100)  # Optional: filter for meaningful shot volume
+
+head(avg_clutch_per_shot, 10)
+
+#Top 10 averages
+avg_clutch_score = clutch_scores %>%
+  left_join(goalie_games_played, by = "goalieNameForShot") %>%
+  mutate(
+    total_clutch_score = as.numeric(total_clutch_score),
+    avg_clutch_per_game = total_clutch_score / games_played
+  ) %>%
+  filter(games_played>=15) %>% #Games Played Filter
+  arrange(desc(avg_clutch_per_game))
+
+# View top 10 goalies by average clutch score per game
+head(avg_clutch_score, 10)
