@@ -1,5 +1,5 @@
 # BenKasperProjects
-My name is Benjamin Kasper, and I am pursuing a bachelor's degree in data science at the University of Pittsburgh. Throughout my 4 years at this school, I have gained valuable programming experience in Java, Python, and R. In this repository, I have uploaded several of my most prominent projects that I have worked on in this repository. Any questions/comments can be directed to ben.kasper.0714@gmail.com
+My name is Benjamin Kasper, and I am pursuing a bachelor's degree in data science at the University of Pittsburgh. Throughout my 4 years at this school, I have gained valuable programming experience in Java, Python, and R. In this repository, I have uploaded several of my most prominent projects that I have worked on over this time. Any questions/comments can be directed to ben.kasper.0714@gmail.com
 
 ## R Projects
 ### Goalie Clutchness
